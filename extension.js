@@ -540,7 +540,12 @@ export default class SpotifyExtension extends Extension {
 
   restartSpotifyForAd() {
     logInfo("Advertisement detected - restarting Spotify to skip it");
-    toggleSpotifyWindow("close");
+
+    const dbus = this._indicator?._dbus;
+    if (!dbus || !dbus.quit()) {
+      logWarn("Falling back to window-close for ad restart");
+      toggleSpotifyWindow("close");
+    }
     this._pendingAdResume = true;
 
     this._clearAdRestartTimeout();

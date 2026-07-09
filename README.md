@@ -18,8 +18,7 @@ It is designed to be theme-aware, and customizable\*
 - **Theme-Aware Colors**: Colors adapt based on the dominant album art color.
 - **Local Statistics**: Keep track of your listening habits.
 - **Track Downloading**: Download and save tracks to your computer.
-- **Spotify Connection**: Connects to your Spotify account for managing liked library.
-- **Ad mute**: Mutes Spotify's volume when an advertisement is playing.
+- **Ad handling**: Mute Spotify during an advertisement, or automatically restart Spotify to skip past it entirely (playback resumes on its own once it reopens).
 
 ---
 
@@ -40,17 +39,12 @@ It is designed to be theme-aware, and customizable\*
 
 ## 📦 Installation
 
-### From Extensions Website
-
-This extension is available on [GNOME Extensions Website](https://extensions.gnome.org/extension/8659/gspotify/).
-
-### From Source
-
-1. Clone the repo into your local extensions directory:
+1. Clone this repo into your local extensions directory:
    ```bash
-   git clone https://github.com/sxoxgxi/gspotify \
+   git clone git@github.com:EneaMaroncelli27/gspotify.git \
      ~/.local/share/gnome-shell/extensions/gspotify@sogi.is-a.dev
    ```
+   (use `https://github.com/EneaMaroncelli27/gspotify.git` instead if you haven't set up SSH access to GitHub)
 2. Compile schemas:
    ```bash
    glib-compile-schemas ~/.local/share/gnome-shell/extensions/gspotify@sogi.is-a.dev/schemas
@@ -60,6 +54,10 @@ This extension is available on [GNOME Extensions Website](https://extensions.gno
    gnome-extensions enable gspotify@sogi.is-a.dev
    ```
 4. Restart GNOME Shell (on X11 press `Alt+F2` then type `r` and hit enter to restart) or log out and log back in.
+
+### Updating after pulling changes
+
+Since this is a local checkout rather than an installed package, after `git pull` you need to recompile the schema again (step 2 above) and restart GNOME Shell (step 4) for changes to take effect.
 
 ---
 

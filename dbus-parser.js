@@ -346,6 +346,30 @@ export class SpotifyDBus {
     }
   }
 
+  quit() {
+    if (!this.proxy) {
+      logWarn("DBus proxy not available for quit");
+      return false;
+    }
+    try {
+      this.proxy.get_connection().call_sync(
+        "org.mpris.MediaPlayer2.spotify",
+        "/org/mpris/MediaPlayer2",
+        "org.mpris.MediaPlayer2",
+        "Quit",
+        null,
+        null,
+        Gio.DBusCallFlags.NONE,
+        -1,
+        null,
+      );
+      return true;
+    } catch (e) {
+      logWarn("Failed to quit Spotify via DBus:", e);
+      return false;
+    }
+  }
+
   getShuffle() {
     if (!this.proxy) {
       return;
