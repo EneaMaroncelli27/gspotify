@@ -29,6 +29,7 @@ const SpotifyIndicator = GObject.registerClass(
       this._volumeTimeout = null;
       this._adMuted = false;
       this._volumeBeforeAd = null;
+      this._adRestartTriggered = false;
 
       this._ui = new SpotifyUI(this, extension, (dominantColor) => {
         this._onColorUpdate(dominantColor);
@@ -99,6 +100,9 @@ const SpotifyIndicator = GObject.registerClass(
       const muteAd = this._extension._settings.get_boolean(
         "mute-advertisements",
       );
+      const restartOnAd = this._extension._settings.get_boolean(
+        "restart-on-advertisement",
+      );
       const metadata = this._dbus.getMetadata();
 
       if (overridePosition) {
@@ -107,7 +111,14 @@ const SpotifyIndicator = GObject.registerClass(
 
       const isAd = metadata.isAdvertisement;
 
-      if (muteAd) {
+      if (restartOnAd) {
+        if (isAd && !this._adRestartTriggered) {
+          this._adRestartTriggered = true;
+          this._extension.restartSpotifyForAd();
+        } else if (!isAd && this._adRestartTriggered) {
+          this._adRestartTriggered = false;
+        }
+      } else if (muteAd) {
         if (isAd && !this._adMuted) {
           this._volumeBeforeAd = this._dbus.getVolume();
           this._dbus.setVolume(0);
@@ -189,32 +200,7 @@ const IconIndicator = GObject.registerClass(
     }
 
     _openSpotify() {
-      const openMinimize = this._extension._settings.get_boolean(
-        "open-spotify-minimized",
-      );
-
-      const apps = Gio.AppInfo.get_all();
-      const spotifyApp = apps.find((app) => {
-        const name = app.get_name().toLowerCase();
-        const id = app.get_id()?.toLowerCase() || "";
-        return name.includes("spotify") || id.includes("spotify");
-      });
-
-      if (!spotifyApp) {
-        logInfo("Spotify app not found");
-        return;
-      }
-
-      try {
-        spotifyApp.launch([], null);
-        logInfo("Launching Spotify...");
-
-        if (openMinimize) {
-          this._extension.scheduleSpotifyMinimize();
-        }
-      } catch (e) {
-        logError("Failed to launch Spotify: " + e);
-      }
+      this._extension.launchSpotifyApp();
     }
 
     destroy() {
@@ -229,6 +215,7 @@ export default class SpotifyExtension extends Extension {
     this._iconIndicator = null;
     this._watcherId = null;
     this._minimizeTimeout = null;
+    this._adRestartTimeout = null;
 
     this._settings = this.getSettings();
 
@@ -283,6 +270,7 @@ export default class SpotifyExtension extends Extension {
 
   disable() {
     this._clearMinimizeTimeout();
+    this._clearAdRestartTimeout();
 
     if (this._settingsHandlerId) {
       this._settings.disconnect(this._settingsHandlerId);
@@ -461,9 +449,9 @@ export default class SpotifyExtension extends Extension {
 
   _checkSpotifyLoginStatus() {
     const controlsOrder = this._settings.get_strv("additional-controls-order");
-    const hasLikeButton = controlsOrder.includes("like");
+    const hasPlaylistButton = controlsOrder.includes("playlist");
 
-    if (!hasLikeButton) {
+    if (!hasPlaylistButton) {
       return;
     }
 
@@ -471,10 +459,10 @@ export default class SpotifyExtension extends Extension {
       .then((isLoggedIn) => {
         if (!isLoggedIn) {
           this.sendOSDMessage(
-            "Connect to Spotify to use the Like button",
+            "Connect to Spotify to use the Add to Playlist button",
             "dialog-warning-symbolic",
           );
-          logInfo("User needs to login to Spotify for like functionality");
+          logInfo("User needs to login to Spotify for playlist functionality");
         } else {
           logInfo("User is logged in to Spotify");
         }
@@ -547,6 +535,58 @@ export default class SpotifyExtension extends Extension {
         }
       },
     );
+  }
+
+  launchSpotifyApp() {
+    const openMinimize = this._settings.get_boolean("open-spotify-minimized");
+
+    const apps = Gio.AppInfo.get_all();
+    const spotifyApp = apps.find((app) => {
+      const name = app.get_name().toLowerCase();
+      const id = app.get_id()?.toLowerCase() || "";
+      return name.includes("spotify") || id.includes("spotify");
+    });
+
+    if (!spotifyApp) {
+      logInfo("Spotify app not found");
+      return false;
+    }
+
+    try {
+      spotifyApp.launch([], null);
+      logInfo("Launching Spotify...");
+
+      if (openMinimize) {
+        this.scheduleSpotifyMinimize();
+      }
+      return true;
+    } catch (e) {
+      logError("Failed to launch Spotify: " + e);
+      return false;
+    }
+  }
+
+  restartSpotifyForAd() {
+    logInfo("Advertisement detected - restarting Spotify to skip it");
+    toggleSpotifyWindow("close");
+
+    this._clearAdRestartTimeout();
+    this._adRestartTimeout = GLib.timeout_add(
+      GLib.PRIORITY_DEFAULT,
+      1000,
+      () => {
+        this._adRestartTimeout = null;
+        this.launchSpotifyApp();
+        return GLib.SOURCE_REMOVE;
+      },
+    );
+  }
+
+  _clearAdRestartTimeout() {
+    if (this._adRestartTimeout) {
+      GLib.Source.remove(this._adRestartTimeout);
+      this._adRestartTimeout = null;
+    }
   }
 
   scheduleSpotifyMinimize() {

@@ -4,20 +4,20 @@ export const INFO_TIPS = [
   "Click the title section to copy the track URL.",
   "Scroll over the top panel label to adjust Spotify volume.",
   "Visit extension's settings to customize your gspotify experience.",
-  "Toggling Like State for Track requires you to connect GSpotify to your Spotify account.",
+  "Adding a track to a playlist requires you to connect GSpotify to your Spotify account.",
 ];
 
 // Spotify Scopes
 export const scopes = [
   {
     id: "user-library-read",
-    label: "Read User Library - Necessary for like",
-    default: true,
+    label: "Read User Library",
+    default: false,
   },
   {
     id: "user-library-modify",
-    label: "Modify User Library - Necessary for like",
-    default: true,
+    label: "Modify User Library",
+    default: false,
   },
   {
     id: "user-read-private",
@@ -47,23 +47,23 @@ export const scopes = [
   },
   {
     id: "playlist-read-private",
-    label: "Read Private Playlists",
-    default: false,
+    label: "Read Private Playlists - Necessary for Add to Playlist",
+    default: true,
   },
   {
     id: "playlist-read-collaborative",
-    label: "Read Collaborative Playlists",
-    default: false,
+    label: "Read Collaborative Playlists - Necessary for Add to Playlist",
+    default: true,
   },
   {
     id: "playlist-modify-public",
-    label: "Modify Public Playlists",
-    default: false,
+    label: "Modify Public Playlists - Necessary for Add to Playlist",
+    default: true,
   },
   {
     id: "playlist-modify-private",
-    label: "Modify Private Playlists",
-    default: false,
+    label: "Modify Private Playlists - Necessary for Add to Playlist",
+    default: true,
   },
   { id: "user-top-read", label: "Read Top Artists/Tracks", default: false },
   { id: "streaming", label: "Streaming (Web Playback SDK)", default: false },
