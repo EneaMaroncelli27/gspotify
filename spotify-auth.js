@@ -384,7 +384,9 @@ export async function getValidAccessToken() {
 
   const refreshToken = await getRefreshToken();
   if (!refreshToken) {
-    logError("No refresh token found");
+    throw new Error(
+      "No refresh token found. Please connect your Spotify account.",
+    );
   }
 
   const tokenData = await getAccessTokenFromRefresh(refreshToken);
@@ -433,21 +435,19 @@ async function getAccessTokenFromRefresh(refreshToken) {
     const statusCode = msg.get_status();
     const responseText = new TextDecoder().decode(response.get_data());
 
-    if (statusCode !== 200) {
-      logError(
-        `Token refresh failed with status ${statusCode}. Please reconnect your Spotify account.`,
-      );
-    }
-
     if (!responseText || responseText.trim() === "") {
-      logError("Empty response from Spotify. Please reconnect your account.");
+      throw new Error(
+        "Empty response from Spotify. Please reconnect your account.",
+      );
     }
 
     const data = JSON.parse(responseText);
 
-    if (data.error) {
-      logError(
-        `Spotify API error: ${data.error} - ${data.error_description || ""}`,
+    if (statusCode !== 200 || data.error) {
+      throw new Error(
+        `Token refresh failed: ${data.error || statusCode} - ${
+          data.error_description || "Please reconnect your Spotify account."
+        }`,
       );
     }
 

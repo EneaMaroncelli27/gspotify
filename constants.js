@@ -4,7 +4,6 @@ export const INFO_TIPS = [
   "Click the title section to copy the track URL.",
   "Scroll over the top panel label to adjust Spotify volume.",
   "Visit extension's settings to customize your gspotify experience.",
-  "Adding a track to a playlist requires you to connect GSpotify to your Spotify account.",
 ];
 
 // Spotify Scopes
@@ -47,23 +46,23 @@ export const scopes = [
   },
   {
     id: "playlist-read-private",
-    label: "Read Private Playlists - Necessary for Add to Playlist",
-    default: true,
+    label: "Read Private Playlists",
+    default: false,
   },
   {
     id: "playlist-read-collaborative",
-    label: "Read Collaborative Playlists - Necessary for Add to Playlist",
-    default: true,
+    label: "Read Collaborative Playlists",
+    default: false,
   },
   {
     id: "playlist-modify-public",
-    label: "Modify Public Playlists - Necessary for Add to Playlist",
-    default: true,
+    label: "Modify Public Playlists",
+    default: false,
   },
   {
     id: "playlist-modify-private",
-    label: "Modify Private Playlists - Necessary for Add to Playlist",
-    default: true,
+    label: "Modify Private Playlists",
+    default: false,
   },
   { id: "user-top-read", label: "Read Top Artists/Tracks", default: false },
   { id: "streaming", label: "Streaming (Web Playback SDK)", default: false },

@@ -60,11 +60,6 @@ export async function getSpotifyUsername() {
   return data.display_name || data.id;
 }
 
-export async function getCurrentUserId() {
-  const data = await apiRequest("GET", "/me");
-  return data.id;
-}
-
 export async function isSpotifyLoggedIn() {
   try {
     const accessToken = await getValidAccessToken();
@@ -73,53 +68,6 @@ export async function isSpotifyLoggedIn() {
     logWarn(`Failed to check Spotify login status: ${e.message}`);
     return false;
   }
-}
-
-export async function getWritablePlaylists() {
-  const userId = await getCurrentUserId();
-  const playlists = [];
-  let url = "/me/playlists?limit=50";
-
-  while (url) {
-    const data = await apiRequest("GET", url);
-    for (const playlist of data.items) {
-      if (playlist.owner?.id === userId || playlist.collaborative) {
-        playlists.push({ id: playlist.id, name: playlist.name });
-      }
-    }
-    url = data.next;
-  }
-
-  return playlists;
-}
-
-export async function getPlaylistTrackUris(playlistId) {
-  const uris = new Set();
-  let url = `/playlists/${playlistId}/tracks?fields=items.track.uri,next&limit=100`;
-
-  while (url) {
-    const data = await apiRequest("GET", url);
-    for (const item of data.items) {
-      if (item.track?.uri) uris.add(item.track.uri);
-    }
-    url = data.next;
-  }
-
-  return uris;
-}
-
-export async function addTrackToPlaylist(playlistId, trackUri) {
-  await apiRequest("POST", `/playlists/${playlistId}/tracks`, {
-    uris: [trackUri],
-  });
-  logInfo(`Added ${trackUri} to playlist ${playlistId}`);
-}
-
-export async function removeTrackFromPlaylist(playlistId, trackUri) {
-  await apiRequest("DELETE", `/playlists/${playlistId}/tracks`, {
-    tracks: [{ uri: trackUri }],
-  });
-  logInfo(`Removed ${trackUri} from playlist ${playlistId}`);
 }
 
 export function cleanupSpotify() {

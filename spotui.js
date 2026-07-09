@@ -5,14 +5,7 @@ import GLib from "gi://GLib";
 import GdkPixbuf from "gi://GdkPixbuf";
 
 import { INFO_TIPS } from "./constants.js";
-import { toggleSpotifyWindow, logWarn, logInfo } from "./utils.js";
-import {
-  getWritablePlaylists,
-  getPlaylistTrackUris,
-  addTrackToPlaylist,
-  removeTrackFromPlaylist,
-} from "./spotify-helper.js";
-import { getValidAccessToken } from "./spotify-auth.js";
+import { toggleSpotifyWindow, logWarn } from "./utils.js";
 
 export class SpotifyUI {
   constructor(indicator, extension, onColorUpdate = null) {
@@ -29,10 +22,6 @@ export class SpotifyUI {
     this._currentPosition = 0;
     this._duration = 0;
     this._shuffleState = false;
-    this._currentTrackId = null;
-    this._isSpotifyConnected = false;
-    this._playlistPickerOpen = false;
-    this._destroyed = false;
 
     this.useFixedWidth = extension._settings.get_boolean("use-fixed-width");
     this.fixedWidth = extension._settings.get_int("ui-width");
@@ -71,7 +60,6 @@ export class SpotifyUI {
     this.container.add_child(this._separator);
 
     this._buildAdditionalControls();
-    this._buildPlaylistPicker();
     if (this._settings.get_boolean("show-info-tip")) {
       this._tipSeparator = new St.Widget({
         style_class: "spotify-separator",
@@ -380,7 +368,6 @@ export class SpotifyUI {
       spacer: this._buildSpacerLabel(),
       download: this._buildDownloadButton(),
       settings: this._buildSettingsButton(),
-      playlist: this._buildAddToPlaylistButton(),
       close: this._buildCloseButton(),
     };
 
@@ -495,235 +482,6 @@ export class SpotifyUI {
     return this._downloadButton;
   }
 
-  _buildAddToPlaylistButton() {
-    this._addToPlaylistButton = new St.Button({
-      style_class: "spotify-button-secondary",
-      child: new St.Icon({
-        icon_name: "list-add-symbolic",
-        icon_size: 16,
-      }),
-    });
-
-    this._addToPlaylistButton.connect("clicked", () => {
-      this._togglePlaylistPicker();
-    });
-    return this._addToPlaylistButton;
-  }
-
-  _buildPlaylistPicker() {
-    this._playlistPickerContainer = new St.BoxLayout({
-      style_class: "spotify-playlist-picker",
-      vertical: true,
-      x_expand: true,
-      visible: false,
-    });
-
-    this._playlistPickerStatusLabel = new St.Label({
-      style_class: "spotify-playlist-picker-status",
-      text: "",
-      x_align: Clutter.ActorAlign.CENTER,
-    });
-
-    this._playlistListBox = new St.BoxLayout({
-      vertical: true,
-      x_expand: true,
-    });
-
-    this._playlistScrollView = new St.ScrollView({
-      style: "max-height: 220px;",
-      x_expand: true,
-      child: this._playlistListBox,
-    });
-
-    this._playlistPickerContainer.add_child(this._playlistPickerStatusLabel);
-    this._playlistPickerContainer.add_child(this._playlistScrollView);
-
-    this.container.add_child(this._playlistPickerContainer);
-  }
-
-  async _togglePlaylistPicker() {
-    if (this._playlistPickerOpen) {
-      this._closePlaylistPicker();
-    } else {
-      await this._openPlaylistPicker();
-    }
-  }
-
-  _closePlaylistPicker() {
-    this._playlistPickerOpen = false;
-    this._playlistPickerContainer.visible = false;
-    this._addToPlaylistButton.remove_style_pseudo_class("active");
-  }
-
-  async _openPlaylistPicker() {
-    if (!this._currentTrackId) {
-      this._extension.sendOSDMessage(
-        "No track playing",
-        "dialog-error-symbolic",
-      );
-      return;
-    }
-
-    await this._checkSpotifyConnection();
-    if (!this._isSpotifyConnected) {
-      this._extension.sendOSDMessage(
-        "Connect Spotify account from extension's settings to add tracks to playlists",
-        "dialog-warning-symbolic",
-      );
-      return;
-    }
-
-    this._playlistPickerOpen = true;
-    this._playlistPickerContainer.visible = true;
-    this._addToPlaylistButton.add_style_pseudo_class("active");
-
-    await this._refreshPlaylistPicker();
-  }
-
-  async _refreshPlaylistPicker() {
-    if (!this._playlistPickerOpen || !this._currentTrackId) return;
-
-    this._playlistListBox.remove_all_children();
-    this._playlistPickerStatusLabel.text = "Loading playlists…";
-    this._playlistPickerStatusLabel.visible = true;
-    if (this._readableTextColor) {
-      this._playlistPickerStatusLabel.style = `color: ${this._readableTextColor};`;
-    }
-
-    const trackUri = `spotify:track:${this._currentTrackId}`;
-    const showMembership = this._settings.get_boolean(
-      "playlist-picker-show-membership",
-    );
-
-    try {
-      const playlists = await getWritablePlaylists();
-
-      let memberships = null;
-      if (showMembership) {
-        memberships = await Promise.all(
-          playlists.map((playlist) =>
-            getPlaylistTrackUris(playlist.id)
-              .then((uris) => uris.has(trackUri))
-              .catch(() => false),
-          ),
-        );
-      }
-
-      if (this._destroyed || !this._playlistPickerOpen) return;
-
-      if (playlists.length === 0) {
-        this._playlistPickerStatusLabel.text =
-          "No playlists you can edit were found";
-        return;
-      }
-
-      this._playlistPickerStatusLabel.visible = false;
-
-      playlists.forEach((playlist, index) => {
-        const inPlaylist = showMembership ? memberships[index] : false;
-        this._addPlaylistRow(playlist, trackUri, showMembership, inPlaylist);
-      });
-    } catch (e) {
-      logWarn("Failed to load playlists:", e);
-      if (this._destroyed) return;
-      this._playlistPickerStatusLabel.text = "Failed to load playlists";
-    }
-  }
-
-  _addPlaylistRow(playlist, trackUri, showMembership, inPlaylist) {
-    const row = new St.Button({
-      style_class: "spotify-playlist-row",
-      x_expand: true,
-      can_focus: true,
-    });
-
-    const rowBox = new St.BoxLayout({
-      vertical: false,
-      x_expand: true,
-    });
-
-    const nameLabel = new St.Label({
-      text: playlist.name,
-      x_expand: true,
-      style_class: "spotify-playlist-name",
-    });
-    nameLabel.clutter_text.ellipsize = 3;
-
-    const stateIcon = new St.Icon({
-      icon_name:
-        showMembership && inPlaylist
-          ? "object-select-symbolic"
-          : "list-add-symbolic",
-      icon_size: 16,
-    });
-
-    if (this._readableTextColor) {
-      nameLabel.style = `color: ${this._readableTextColor};`;
-      stateIcon.style = `color: ${this._readableTextColor};`;
-    }
-
-    rowBox.add_child(nameLabel);
-    rowBox.add_child(stateIcon);
-    row.child = rowBox;
-
-    let currentlyIn = inPlaylist;
-
-    row.connect("clicked", async () => {
-      row.reactive = false;
-      try {
-        if (showMembership && currentlyIn) {
-          await removeTrackFromPlaylist(playlist.id, trackUri);
-          currentlyIn = false;
-          stateIcon.icon_name = "list-add-symbolic";
-          this._extension.sendOSDMessage(
-            `Removed from ${playlist.name}`,
-            "list-remove-symbolic",
-          );
-        } else {
-          await addTrackToPlaylist(playlist.id, trackUri);
-          currentlyIn = true;
-          if (showMembership) {
-            stateIcon.icon_name = "object-select-symbolic";
-          }
-          this._extension.sendOSDMessage(
-            `Added to ${playlist.name}`,
-            "list-add-symbolic",
-          );
-        }
-      } catch (e) {
-        logWarn("Failed to update playlist:", e);
-        this._extension.sendOSDMessage(
-          "Failed to update playlist. Reconnect in settings if this persists",
-          "dialog-error-symbolic",
-        );
-      } finally {
-        if (!this._destroyed) row.reactive = true;
-      }
-    });
-
-    this._playlistListBox.add_child(row);
-  }
-
-  async _checkSpotifyConnection() {
-    try {
-      const accessToken = await getValidAccessToken();
-      this._isSpotifyConnected = accessToken && accessToken.length > 0;
-    } catch (e) {
-      this._isSpotifyConnected = false;
-    }
-  }
-
-  _extractTrackIdFromUrl(url) {
-    if (!url) return null;
-
-    if (url.startsWith("spotify:track:")) {
-      return url.split(":")[2];
-    }
-
-    const match = url.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
-    return match ? match[1] : null;
-  }
-
   _onPlayPause() {
     const newPlaying = !this._isPlaying;
 
@@ -768,7 +526,6 @@ export class SpotifyUI {
   async update(metadata) {
     if (!metadata?.success) return;
 
-    await this._checkSpotifyConnection();
     this._currentMetadata = metadata;
 
     this._updateText(metadata);
@@ -778,22 +535,9 @@ export class SpotifyUI {
     this._shuffleState = metadata.shuffle;
     this._updateShuffleButton();
 
-    if (metadata.url) {
-      const trackId = this._extractTrackIdFromUrl(metadata.url);
-      this._mprisTrackId =
-        metadata.trackId || "/org/mpris/MediaPlayer2/TrackList/NoTrack";
-      if (trackId && trackId !== this._currentTrackId) {
-        this._currentTrackId = trackId;
-        if (this._playlistPickerOpen) {
-          this._refreshPlaylistPicker();
-        }
-      }
-    } else {
-      this._currentTrackId = null;
-      if (this._playlistPickerOpen) {
-        this._closePlaylistPicker();
-      }
-    }
+    this._mprisTrackId = metadata.url
+      ? metadata.trackId || "/org/mpris/MediaPlayer2/TrackList/NoTrack"
+      : null;
   }
 
   _updateShuffleState() {
@@ -1087,16 +831,11 @@ export class SpotifyUI {
     this._settingsButton.style = `color: ${readableTextColor};`;
     this._downloadButton.style = `color: ${readableTextColor};`;
     this._spotifyToggleButton.style = `color: ${readableTextColor};`;
-    this._addToPlaylistButton.style = `color: ${readableTextColor};`;
     this._closeButton.style = `color: ${readableTextColor};`;
 
     this._titleLabel.style = `color: ${readableTextColor};`;
     this._artistLabel.style = `color: ${readableTextColor};`;
     this._overlayIcon.style = `color: ${readableTextColor};`;
-
-    if (this._playlistPickerOpen) {
-      this._playlistPickerStatusLabel.style = `color: ${readableTextColor};`;
-    }
 
     if (this._onColorUpdate) {
       this._onColorUpdate(dominantColor);
@@ -1133,8 +872,6 @@ export class SpotifyUI {
   }
 
   destroy() {
-    this._destroyed = true;
-    this._playlistPickerOpen = false;
     this._stopProgressUpdate();
 
     if (this._infoBoxClickId) {

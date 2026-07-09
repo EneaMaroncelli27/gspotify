@@ -113,7 +113,7 @@
 
     
     <key name="spotify-scopes" type="s">
-      <default>"playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private"</default>
+      <default>""</default>
       <summary>Spotify OAuth Scopes</summary>
       <description>Space-separated list of OAuth scopes for Spotify API access</description>
     </key>
@@ -128,12 +128,6 @@
       <default>false</default>
       <summary>Restart Spotify on Advertisement</summary>
       <description>Closes and relaunches Spotify when an advertisement is detected, attempting to skip past it. Experimental: playback may not resume exactly where it left off.</description>
-    </key>
-
-    <key name="playlist-picker-show-membership" type="b">
-      <default>true</default>
-      <summary>Show Playlist Checkmarks</summary>
-      <description>When adding a track to a playlist, checks and shows which playlists already contain it, allowing toggle add/remove. Disable for faster opening if you have very large playlists.</description>
     </key>
 
   </schema>

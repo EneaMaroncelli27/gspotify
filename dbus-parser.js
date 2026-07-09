@@ -321,6 +321,9 @@ export class SpotifyDBus {
             null,
           );
           break;
+        case "play":
+          this.proxy.call_sync("Play", null, Gio.DBusCallFlags.NONE, -1, null);
+          break;
         case "next":
           this.proxy.call_sync("Next", null, Gio.DBusCallFlags.NONE, -1, null);
           break;

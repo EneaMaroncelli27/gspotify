@@ -14,7 +14,7 @@ import { SpotDLExecutor } from "./spotdl.js";
 import { getStatusSymbol, toggleSpotifyWindow } from "./utils.js";
 import { logInfo, logWarn, logError } from "./utils.js";
 import { destroyStatsManager } from "./stats.js";
-import { cleanupSpotify, isSpotifyLoggedIn } from "./spotify-helper.js";
+import { cleanupSpotify } from "./spotify-helper.js";
 import { cleanupSpotifyAuth } from "./spotify-auth.js";
 
 const SHELL_VERSION = parseFloat(Config.PACKAGE_VERSION);
@@ -151,7 +151,6 @@ const SpotifyIndicator = GObject.registerClass(
             ? displayText.substring(0, labelLength - 3) + "..."
             : displayText;
 
-        this._ui._checkSpotifyConnection();
         this._ui.update(metadata);
       } else {
         this._label.text = "Spotify";
@@ -216,6 +215,9 @@ export default class SpotifyExtension extends Extension {
     this._watcherId = null;
     this._minimizeTimeout = null;
     this._adRestartTimeout = null;
+    this._backgroundTimeout = null;
+    this._adResumeTimeout = null;
+    this._pendingAdResume = false;
 
     this._settings = this.getSettings();
 
@@ -255,13 +257,6 @@ export default class SpotifyExtension extends Extension {
       this._onSpotifyVanished.bind(this),
     );
 
-    this._controlOrderHandlerId = this._settings.connect(
-      "changed::additional-controls-order",
-      () => {
-        this._checkSpotifyLoginStatus();
-      },
-    );
-
     const presistIndicator = this._settings.get_boolean("presist-indicator");
     if (presistIndicator && !this._indicator) {
       this._createIndicator(true);
@@ -271,6 +266,8 @@ export default class SpotifyExtension extends Extension {
   disable() {
     this._clearMinimizeTimeout();
     this._clearAdRestartTimeout();
+    this._clearBackgroundTimeout();
+    this._clearAdResumeTimeout();
 
     if (this._settingsHandlerId) {
       this._settings.disconnect(this._settingsHandlerId);
@@ -290,11 +287,6 @@ export default class SpotifyExtension extends Extension {
     if (this._artistNameHandlerId) {
       this._settings.disconnect(this._artistNameHandlerId);
       this._artistNameHandlerId = null;
-    }
-
-    if (this._controlOrderHandlerId) {
-      this._settings.disconnect(this._controlOrderHandlerId);
-      this._controlOrderHandlerId = null;
     }
 
     if (this._watcherId) {
@@ -430,6 +422,11 @@ export default class SpotifyExtension extends Extension {
       }
 
       this._createIndicator(false);
+
+      if (this._pendingAdResume) {
+        this._pendingAdResume = false;
+        this._resumePlaybackAfterAdRestart();
+      }
     }
   }
 
@@ -445,31 +442,6 @@ export default class SpotifyExtension extends Extension {
         this._createIndicator(true);
       }
     }
-  }
-
-  _checkSpotifyLoginStatus() {
-    const controlsOrder = this._settings.get_strv("additional-controls-order");
-    const hasPlaylistButton = controlsOrder.includes("playlist");
-
-    if (!hasPlaylistButton) {
-      return;
-    }
-
-    isSpotifyLoggedIn()
-      .then((isLoggedIn) => {
-        if (!isLoggedIn) {
-          this.sendOSDMessage(
-            "Connect to Spotify to use the Add to Playlist button",
-            "dialog-warning-symbolic",
-          );
-          logInfo("User needs to login to Spotify for playlist functionality");
-        } else {
-          logInfo("User is logged in to Spotify");
-        }
-      })
-      .catch((e) => {
-        logWarn(`Error checking Spotify login: ${e.message}`);
-      });
   }
 
   control(action) {
@@ -569,6 +541,7 @@ export default class SpotifyExtension extends Extension {
   restartSpotifyForAd() {
     logInfo("Advertisement detected - restarting Spotify to skip it");
     toggleSpotifyWindow("close");
+    this._pendingAdResume = true;
 
     this._clearAdRestartTimeout();
     this._adRestartTimeout = GLib.timeout_add(
@@ -577,6 +550,7 @@ export default class SpotifyExtension extends Extension {
       () => {
         this._adRestartTimeout = null;
         this.launchSpotifyApp();
+        this.scheduleSpotifyBackground();
         return GLib.SOURCE_REMOVE;
       },
     );
@@ -586,6 +560,75 @@ export default class SpotifyExtension extends Extension {
     if (this._adRestartTimeout) {
       GLib.Source.remove(this._adRestartTimeout);
       this._adRestartTimeout = null;
+    }
+  }
+
+  scheduleSpotifyBackground() {
+    this._clearBackgroundTimeout();
+
+    let tries = 0;
+    this._backgroundTimeout = GLib.timeout_add(
+      GLib.PRIORITY_DEFAULT,
+      500,
+      () => {
+        const success = toggleSpotifyWindow("background");
+        if (success || tries++ > 10) {
+          if (!success) logWarn("Background timeout exceeded");
+          this._backgroundTimeout = null;
+          return GLib.SOURCE_REMOVE;
+        }
+        return GLib.SOURCE_CONTINUE;
+      },
+    );
+  }
+
+  _clearBackgroundTimeout() {
+    if (this._backgroundTimeout) {
+      GLib.Source.remove(this._backgroundTimeout);
+      this._backgroundTimeout = null;
+    }
+  }
+
+  _resumePlaybackAfterAdRestart() {
+    this._clearAdResumeTimeout();
+
+    let tries = 0;
+    this._adResumeTimeout = GLib.timeout_add(
+      GLib.PRIORITY_DEFAULT,
+      500,
+      () => {
+        if (!this._indicator || !this._indicator._dbus) {
+          if (tries++ > 10) {
+            this._adResumeTimeout = null;
+            return GLib.SOURCE_REMOVE;
+          }
+          return GLib.SOURCE_CONTINUE;
+        }
+
+        const metadata = this._indicator._dbus.getMetadata();
+        if (!metadata.success) {
+          if (tries++ > 10) {
+            logWarn("Timed out waiting to resume playback after ad restart");
+            this._adResumeTimeout = null;
+            return GLib.SOURCE_REMOVE;
+          }
+          return GLib.SOURCE_CONTINUE;
+        }
+
+        if (!metadata.isPlaying) {
+          this._indicator._dbus.control("play");
+          logInfo("Resumed playback after ad restart");
+        }
+        this._adResumeTimeout = null;
+        return GLib.SOURCE_REMOVE;
+      },
+    );
+  }
+
+  _clearAdResumeTimeout() {
+    if (this._adResumeTimeout) {
+      GLib.Source.remove(this._adResumeTimeout);
+      this._adResumeTimeout = null;
     }
   }
 

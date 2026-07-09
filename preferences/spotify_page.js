@@ -429,7 +429,7 @@ export function buildSpotifyPage(window, settings) {
       const errorDialog = new Adw.MessageDialog({
         transient_for: window,
         heading: "Connection Invalid",
-        body: "Spotify returned an invalid response when validating your session.",
+        body: `Spotify returned an invalid response when validating your session.\n\nDetails: ${e.message}`,
       });
       errorDialog.add_response("ok", "OK");
       errorDialog.set_response_appearance(

@@ -88,33 +88,3 @@
   height: 1px;
   margin-top: 8px;
 }
-
-.spotify-playlist-picker {
-  margin-top: 8px;
-  spacing: 4px;
-}
-
-.spotify-playlist-picker-status {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
-  padding: 6px 0px;
-}
-
-.spotify-playlist-row {
-  border-radius: 8px;
-  padding: 6px 10px;
-  background-color: transparent;
-  transition: background-color 150ms ease;
-}
-
-.spotify-playlist-row:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.spotify-playlist-row:active {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.spotify-playlist-name {
-  font-size: 13px;
-}

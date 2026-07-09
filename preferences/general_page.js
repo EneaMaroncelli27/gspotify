@@ -16,7 +16,6 @@ const BUTTONS = {
   spacer: "Spacer",
   download: "Download Track",
   settings: "Open Settings",
-  playlist: "Add to Playlist",
   close: "Close Spotify",
 };
 
@@ -220,19 +219,6 @@ export function buildGeneralPage(window, settings, metadata) {
     Gio.SettingsBindFlags.DEFAULT | Gio.SettingsBindFlags.INVERT_BOOLEAN,
   );
 
-  const playlistMembershipRow = new Adw.SwitchRow({
-    title: "Show Playlist Checkmarks",
-    subtitle:
-      "When adding a track to a playlist, checks which playlists already have it and lets you remove it too. Disable for a faster-opening picker if you have very large playlists.",
-  });
-
-  settings.bind(
-    "playlist-picker-show-membership",
-    playlistMembershipRow,
-    "active",
-    Gio.SettingsBindFlags.DEFAULT,
-  );
-
   generalGroup.add(panelPositionRow);
   generalGroup.add(showInfoTipRow);
   generalGroup.add(useArtworkColorsRow);
@@ -244,7 +230,6 @@ export function buildGeneralPage(window, settings, metadata) {
   generalGroup.add(artistVisible);
   generalGroup.add(muteAdvertisementRow);
   generalGroup.add(restartOnAdRow);
-  generalGroup.add(playlistMembershipRow);
   generalGroup.add(presistIndicatorRow);
   generalGroup.add(minimizedSpotifyRow);
 

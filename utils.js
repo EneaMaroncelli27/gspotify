@@ -65,6 +65,14 @@ export function toggleSpotifyWindow(action = "toggle") {
           logInfo("Spotify window closed");
           break;
 
+        case "background":
+          if (isMinimized) {
+            win.unminimize();
+          }
+          win.lower();
+          logInfo("Spotify window lowered to background");
+          break;
+
         case "toggle":
         default:
           if (isMinimized) {
